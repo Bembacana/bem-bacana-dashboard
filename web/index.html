@@ -1949,87 +1949,90 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <script>
 // ── Upload + Processamento ────────────────────────────────────────────────────
-const files_selecionados = { erp: null, fat: null, crm: null }
-const EDGE_URL = 'https://baejbzlmzsxapazhqrus.supabase.co/functions/v1/trigger-processing'
+var uploadFiles = { erp: null, fat: null, crm: null };
+var EDGE_URL = 'https://baejbzlmzsxapazhqrus.supabase.co/functions/v1/trigger-processing';
 
 function abrirModalAtualizar() {
-  document.getElementById('modal-atualizar-overlay').classList.add('open')
+  document.getElementById('modal-atualizar-overlay').classList.add('open');
 }
 function fecharModalAtualizar() {
-  document.getElementById('modal-atualizar-overlay').classList.remove('open')
+  document.getElementById('modal-atualizar-overlay').classList.remove('open');
 }
 
 function selecionarArquivo(tipo, input) {
-  const file = input.files[0]
-  if (!file) return
-  files_selecionados[tipo] = file
-  document.getElementById('fname-' + tipo).textContent = file.name
-  document.getElementById('area-' + tipo).classList.add('ok')
-  // Habilitar botão processar se tiver ao menos 1 arquivo
-  const temArquivo = Object.values(files_selecionados).some(f => f !== null)
-  document.getElementById('btn-processar').disabled = !temArquivo
+  if (!input || !input.files || input.files.length === 0) return;
+  var file = input.files[0];
+  uploadFiles[tipo] = file;
+  document.getElementById('fname-' + tipo).textContent = file.name;
+  document.getElementById('area-' + tipo).classList.add('ok');
+  var temArquivo = uploadFiles.erp !== null || uploadFiles.fat !== null || uploadFiles.crm !== null;
+  document.getElementById('btn-processar').disabled = !temArquivo;
 }
 
 async function processar() {
-  const btn = document.getElementById('btn-processar')
-  const status = document.getElementById('upd-status')
-  btn.disabled = true
-  btn.textContent = 'Enviando arquivos...'
-  status.className = 'upd-status'
-  status.textContent = ''
+  var btn    = document.getElementById('btn-processar');
+  var status = document.getElementById('upd-status');
+  btn.disabled       = true;
+  btn.textContent    = 'Enviando arquivos...';
+  status.className   = 'upd-status';
+  status.textContent = '';
 
   try {
-    // 1. Upload dos arquivos para o Supabase Storage
-    const { data: { session } } = await sb.auth.getSession()
-    if (!session) throw new Error('Sessão expirada. Faça login novamente.')
+    var sessaoResult = await sb.auth.getSession();
+    var session = sessaoResult.data.session;
+    if (!session) throw new Error('Sessao expirada. Faca login novamente.');
 
-    let uploadados = 0
-    const prefixo = new Date().toISOString().slice(0,16).replace('T','-').replace(':','')
+    var tipos     = ['erp', 'fat', 'crm'];
+    var uploadados = 0;
+    var prefixo   = new Date().toISOString().slice(0,16).replace('T','-').replace(':','');
 
-    for (const [tipo, file] of Object.entries(files_selecionados)) {
-      if (!file) continue
-      const path = prefixo + '-' + tipo + '-' + file.name
-      const { error } = await sb.storage.from('planilhas').upload(path, file, {
+    for (var i = 0; i < tipos.length; i++) {
+      var tipo = tipos[i];
+      var file = uploadFiles[tipo];
+      if (!file) continue;
+      var filePath = prefixo + '-' + tipo + '-' + file.name;
+      var result = await sb.storage.from('planilhas').upload(filePath, file, {
         upsert: true,
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      })
-      if (error) throw new Error('Erro ao enviar ' + file.name + ': ' + error.message)
-      uploadados++
+      });
+      if (result.error) throw new Error('Erro ao enviar ' + file.name + ': ' + result.error.message);
+      uploadados++;
     }
 
-    if (uploadados === 0) throw new Error('Selecione ao menos um arquivo.')
+    if (uploadados === 0) throw new Error('Selecione ao menos um arquivo antes de processar.');
 
-    // 2. Disparar o processamento via Edge Function
-    btn.textContent = 'Disparando processamento...'
-    const resp = await fetch(EDGE_URL, {
+    btn.textContent = 'Disparando processamento...';
+
+    var resp = await fetch(EDGE_URL, {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + session.access_token,
         'Content-Type': 'application/json'
       }
-    })
+    });
 
     if (!resp.ok) {
-      const err = await resp.text()
-      throw new Error('Edge Function: ' + resp.status + ' — ' + err)
+      var errTxt = await resp.text();
+      throw new Error('Servidor retornou ' + resp.status + ': ' + errTxt);
     }
 
-    status.className = 'upd-status ok'
-    status.textContent = '✓ ' + uploadados + ' arquivo(s) enviado(s). Processamento iniciado — o dashboard será atualizado em ~2 minutos.'
-    btn.textContent = 'Processamento em andamento...'
+    status.className   = 'upd-status ok';
+    status.textContent = '✓ ' + uploadados + ' arquivo(s) enviado(s). Processamento iniciado — aguarde ~2 minutos para o dashboard atualizar.';
+    btn.textContent    = '▶ Processar e Atualizar Dashboard';
+    btn.disabled       = false;
 
-    // Limpar seleções
-    ;['erp','fat','crm'].forEach(k => { files_selecionados[k] = null })
-    ;['erp','fat','crm'].forEach(t => {
-      document.getElementById('fname-' + t).textContent = ''
-      document.getElementById('area-' + t).classList.remove('ok')
-    })
+    var limpar = ['erp', 'fat', 'crm'];
+    for (var j = 0; j < limpar.length; j++) {
+      uploadFiles[limpar[j]] = null;
+      document.getElementById('fname-' + limpar[j]).textContent = '';
+      document.getElementById('area-'  + limpar[j]).classList.remove('ok');
+    }
 
   } catch(e) {
-    status.className = 'upd-status err'
-    status.textContent = '✗ ' + e.message
-    btn.disabled = false
-    btn.textContent = '▶ Processar e Atualizar Dashboard'
+    status.className   = 'upd-status err';
+    status.textContent = '✗ ' + (e && e.message ? e.message : String(e));
+    btn.disabled       = false;
+    btn.textContent    = '▶ Processar e Atualizar Dashboard';
   }
 }
 </script>
