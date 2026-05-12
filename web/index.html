@@ -2019,8 +2019,8 @@ async function processar() {
     btn.textContent = 'Processamento em andamento...'
 
     // Limpar seleções
-    for (const k of Object.keys(files_selecionados)) files_selecionados[k] = null
-    ['erp','fat','crm'].forEach(t => {
+    ;['erp','fat','crm'].forEach(k => { files_selecionados[k] = null })
+    ;['erp','fat','crm'].forEach(t => {
       document.getElementById('fname-' + t).textContent = ''
       document.getElementById('area-' + t).classList.remove('ok')
     })
