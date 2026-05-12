@@ -413,10 +413,12 @@ def calcular(p2, eloca, erp, cac_hist, faturamento=None, manual=None, crm=None):
     rec_m     = defaultdict(int)
 
     for r in p2:
+        # Todos os clientes p2 entram no histórico (incluindo inadimplentes),
+        # pois já tiveram contato com a empresa — regra: 1ª ocorrência global = novo
+        cli_m[r['ym']].add(r['cliente'])
         if not r['pago']:
             continue
         fat[r['ym']][r['vertical']] += r['valor']
-        cli_m[r['ym']].add(r['cliente'])
 
     for r in eloca:
         if r['status'] != 'Aprovada':
@@ -467,14 +469,19 @@ def calcular(p2, eloca, erp, cac_hist, faturamento=None, manual=None, crm=None):
             crm_cli_m[r['ym']][n]  = r['cliente']
             crm_vert_m[r['ym']][n] = r.get('vertical', '')
     crm_detalhes = {}
-    for ym, cmap in crm_cli_m.items():
-        novos_crm   = {n: orig for n, orig in cmap.items() if n not in erp_all_norm}
-        antigos_crm = {n: orig for n, orig in cmap.items() if n in erp_all_norm}
+    # crm_vistos: acumula histórico ERP + CRM mês a mês (cronológico)
+    # garante que cliente "novo no CRM" em jan não apareça como "novo" novamente em mar
+    crm_vistos = erp_all_norm.copy()
+    for ym in sorted(crm_cli_m.keys()):
+        cmap = crm_cli_m[ym]
+        novos_crm   = {n: orig for n, orig in cmap.items() if n not in crm_vistos}
+        antigos_crm = {n: orig for n, orig in cmap.items() if n in crm_vistos}
         vmap_c = crm_vert_m.get(ym, {})
         crm_detalhes[ym] = {
             'novos':   sorted([{'nome': orig, 'vertical': vmap_c.get(n,'')} for n, orig in novos_crm.items()], key=lambda x: x['nome']),
             'antigos': sorted([{'nome': orig, 'vertical': vmap_c.get(n,'')} for n, orig in antigos_crm.items()], key=lambda x: x['nome']),
         }
+        crm_vistos |= set(cmap.keys())  # adiciona clientes deste mês ao histórico acumulado
 
     # ── Pipeline ──
     pip_st      = defaultdict(lambda: {'qtd':0,'valor':0.0})
