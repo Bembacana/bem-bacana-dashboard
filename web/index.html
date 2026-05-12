@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bem Bacana — Dashboard Financeiro</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --primary:#076A76; --secondary:#41A8B9; --accent:#FBAE4B;
+    --gray:#61605B; --danger:#DC3545; --success:#28A745;
+    --bg:#F8F9FA; --card:#FFFFFF; --border:#E9ECEF;
+    --font:'Nunito',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--gray);min-height:100vh}
+  a{color:var(--primary)}
+
+  /* ── LOGIN ── */
+  #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#076A76 0%,#41A8B9 100%)}
+  .login-card{background:#fff;border-radius:16px;padding:48px 40px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+  .login-logo{font-size:22px;font-weight:900;color:var(--primary);text-align:center;margin-bottom:8px;letter-spacing:-0.5px}
+  .login-sub{text-align:center;font-size:13px;color:var(--gray);margin-bottom:32px}
+  .login-card input{width:100%;padding:12px 16px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;margin-bottom:12px;outline:none;transition:border .2s}
+  .login-card input:focus{border-color:var(--primary)}
+  .btn{display:block;width:100%;padding:13px;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-primary:hover{opacity:.88}
+  .btn-sm{display:inline-block;width:auto;padding:8px 16px;font-size:13px}
+  .btn-accent{background:var(--accent);color:#fff}
+  .btn-success{background:var(--success);color:#fff}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-outline{background:transparent;border:1.5px solid var(--primary);color:var(--primary)}
+  #login-error{color:var(--danger);font-size:13px;text-align:center;margin-top:8px;min-height:20px}
+
+  /* ── APP SHELL ── */
+  #app{display:none}
+  .topbar{background:var(--primary);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+  .topbar-brand{font-size:16px;font-weight:800;letter-spacing:.3px}
+  .topbar-brand span{color:var(--accent)}
+  .topbar-right{display:flex;align-items:center;gap:12px;font-size:13px}
+  .user-badge{background:rgba(255,255,255,.15);border-radius:20px;padding:4px 12px;font-size:12px}
+  .admin-badge{background:var(--accent);color:#fff;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700}
+  .topbar button{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px}
+  .topbar button:hover{background:rgba(255,255,255,.25)}
+
+  /* ── UPLOAD BAR ── */
+  .upload-bar{background:#fff;border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .upload-bar-label{font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;margin-right:4px}
+  .upload-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:1.5px dashed;cursor:pointer;font-size:13px;font-weight:600;background:transparent;transition:all .2s}
+  .upload-btn-erp{color:var(--primary);border-color:var(--primary)}
+  .upload-btn-erp:hover{background:#f0f9fa}
+  .upload-btn-fat{color:#8B5CF6;border-color:#8B5CF6}
+  .upload-btn-fat:hover{background:#f5f0ff}
+  .upload-btn-crm{color:#F59E0B;border-color:#F59E0B}
+  .upload-btn-crm:hover{background:#fffbf0}
+  .process-btn{margin-left:auto;padding:8px 20px;border-radius:8px;border:none;background:var(--primary);color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .process-btn:disabled{opacity:.5;cursor:default}
+  .upload-status{font-size:12px;color:var(--gray)}
+
+  /* ── LAYOUT ── */
+  .main-grid{display:grid;grid-template-columns:280px 1fr;gap:0;min-height:calc(100vh - 56px - 52px)}
+  .sidebar{background:#fff;border-right:1px solid var(--border);padding:20px 16px;overflow-y:auto}
+  .content{padding:24px;overflow-y:auto}
+
+  /* ── SIDEBAR ── */
+  .sidebar-section{margin-bottom:24px}
+  .sidebar-title{font-size:11px;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid var(--primary)}
+  .filter-group{margin-bottom:12px}
+  .filter-label{font-size:11px;font-weight:700;color:var(--gray);text-transform:uppercase;margin-bottom:6px;display:block}
+  .filter-group select,.filter-group input{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;outline:none}
+  .filter-group select:focus,.filter-group input:focus{border-color:var(--primary)}
+  .meta-input-row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+  .meta-input-row label{font-size:12px;color:var(--gray);min-width:60px}
+  .meta-input-row input{flex:1;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px}
+  .upload-history-item{font-size:11px;color:var(--gray);padding:6px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+  .badge-ok{background:#d4edda;color:#155724}
+  .badge-pending{background:#fff3cd;color:#856404}
+  .badge-err{background:#f8d7da;color:#721c24}
+
+  /* ── CARDS ── */
+  .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:20px;margin-bottom:16px}
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+  .kpi-card{background:#fff;border-radius:12px;padding:16px 20px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:4px solid var(--primary)}
+  .kpi-label{font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+  .kpi-value{font-size:26px;font-weight:900;color:var(--primary);line-height:1}
+  .kpi-sub{font-size:11px;color:var(--gray);margin-top:4px}
+  .kpi-up{color:var(--success)}
+  .kpi-down{color:var(--danger)}
+  .sec-label{font-size:11px;font-weight:800;color:var(--primary);text-transform:uppercase;letter-spacing:1px;margin:20px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--primary)}
+
+  /* ── PIPELINE STATUS GRID ── */
+  .status-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .status-card{background:#f8f9fa;border-radius:8px;padding:10px 14px;border-left:3px solid #ccc;min-width:110px}
+  .status-card-label{font-size:9px;font-weight:700;text-transform:uppercase;color:var(--gray);letter-spacing:.5px}
+  .status-card-num{font-size:22px;font-weight:900}
+  .status-card-val{font-size:10px;color:var(--gray)}
+
+  /* ── TABELAS ── */
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:var(--bg);font-weight:700;color:var(--gray);padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td{padding:8px 12px;border-bottom:1px solid var(--border)}
+  tr:hover td{background:#f8f9fa}
+
+  /* ── MODAIS ── */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:#fff;border-radius:16px;padding:32px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto}
+  .modal-title{font-size:18px;font-weight:800;color:var(--primary);margin-bottom:20px}
+  .form-group{margin-bottom:16px}
+  .form-group label{display:block;font-size:12px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:var(--font)}
+  .form-group input:focus,.form-group select:focus{border-color:var(--primary)}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+  .toast{position:fixed;bottom:24px;right:24px;background:#333;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+  .toast.show{opacity:1}
+  .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  canvas{max-height:280px}
+  .cli-toggle{background:none;border:none;color:var(--primary);cursor:pointer;font-size:12px;padding:4px 0;text-decoration:underline}
+  .cli-list{font-size:11px;color:var(--gray);margin-top:6px;padding:8px;background:var(--bg);border-radius:6px;display:none}
+  .fonte-legend{display:flex;gap:12px;font-size:11px;margin-bottom:8px}
+  .fonte-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">BEM BACANA</div>
+    <div class="login-sub">Dashboard Financeiro — Acesso Restrito</div>
+    <input id="email" type="email" placeholder="E-mail" autocomplete="email">
+    <input id="senha" type="password" placeholder="Senha" autocomplete="current-password">
+    <button class="btn btn-primary" onclick="fazerLogin()">Entrar</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ═══ APP ══════════════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-brand">BEM <span>BACANA</span> · Dashboard</div>
+    <div class="topbar-right">
+      <span id="admin-badge" class="admin-badge" style="display:none">ADMIN</span>
+      <span id="user-email" class="user-badge"></span>
+      <button onclick="abrirModalManual()">+ Lançamento</button>
+      <button onclick="abrirModalConfig()">⚙ Configurar</button>
+      <button onclick="sair()">Sair</button>
+    </div>
+  </div>
+
+  <!-- Upload bar -->
+  <div class="upload-bar">
+    <span class="upload-bar-label">Atualizar:</span>
+    <button class="upload-btn upload-btn-erp" onclick="triggerUpload('ERP')">
+      📋 Planilha ERP
+    </button>
+    <button class="upload-btn upload-btn-fat" onclick="triggerUpload('Faturamento')">
+      💰 Faturamento
+    </button>
+    <button class="upload-btn upload-btn-crm" onclick="triggerUpload('CRM')">
+      📁 CRM / Preliminares
+    </button>
+    <span id="upload-status" class="upload-status"></span>
+    <button id="process-btn" class="process-btn" onclick="processar()" disabled>
+      ▶ Processar Agora
+    </button>
+  </div>
+
+  <!-- Hidden file inputs -->
+  <input type="file" id="file-ERP" accept=".xlsx,.xls" style="display:none" onchange="uploadArquivo('ERP',this)">
+  <input type="file" id="file-Faturamento" accept=".xlsx,.xls" style="display:none" onchange="uploadArquivo('Faturamento',this)">
+  <input type="file" id="file-CRM" accept=".xlsx,.xls" style="display:none" onchange="uploadArquivo('CRM',this)">
+
+  <!-- Main grid -->
+  <div class="main-grid">
+
+    <!-- ── SIDEBAR ── -->
+    <div class="sidebar">
+
+      <!-- Filtros -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">Filtros</div>
+        <div class="filter-group">
+          <span class="filter-label">Período</span>
+          <select id="f-ano" onchange="aplicarFiltro()">
+            <option value="all">Todo histórico</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <select id="f-mes" onchange="aplicarFiltro()">
+            <option value="all">Todos os meses</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Metas rápidas -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">Meta Mensal</div>
+        <div class="meta-input-row">
+          <label>R$</label>
+          <input type="number" id="meta-input" placeholder="150000" oninput="salvarMeta()">
+        </div>
+      </div>
+
+      <!-- Break-even -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">Break-even</div>
+        <div class="meta-input-row">
+          <label>R$</label>
+          <input type="number" id="be-input" placeholder="0" oninput="salvarBreakeven()">
+        </div>
+      </div>
+
+      <!-- Marketing do mês -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">Marketing (mês)</div>
+        <div class="meta-input-row">
+          <label>Mês</label>
+          <input type="month" id="mkt-mes" style="flex:1;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px">
+        </div>
+        <div class="meta-input-row">
+          <label>R$</label>
+          <input type="number" id="mkt-valor" placeholder="0">
+        </div>
+        <button class="btn btn-primary btn-sm" style="width:100%;margin-top:4px" onclick="salvarMarketing()">Salvar Marketing</button>
+      </div>
+
+      <!-- Inadimplência -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">Inadimplência</div>
+        <div class="meta-input-row">
+          <label>Mês</label>
+          <input type="month" id="inadimpl-mes" style="flex:1;font-size:12px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px">
+        </div>
+        <div class="meta-input-row">
+          <label>R$</label>
+          <input type="number" id="inadimpl-valor" placeholder="0">
+        </div>
+        <button class="btn btn-primary btn-sm" style="width:100%;margin-top:4px" onclick="salvarInadimplencia()">Salvar</button>
+      </div>
+
+      <!-- Histórico de uploads -->
+      <div class="sidebar-section">
+        <div class="sidebar-title">Últimos Uploads</div>
+        <div id="upload-history"></div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+    <!-- ── CONTEÚDO ── -->
+    <div class="content">
+
+      <div id="loading-data" style="text-align:center;padding:60px;color:var(--gray)">
+        <div class="spinner" style="border-color:var(--primary);border-top-color:transparent;width:32px;height:32px;margin:0 auto 16px"></div>
+        Carregando dados...
+      </div>
+
+      <div id="dashboard-content" style="display:none">
+
+        <!-- KPI Cards -->
+        <div id="kpi-cards" class="card-grid"></div>
+
+        <!-- Faturamento -->
+        <div class="sec-label" id="lbl-fat">Evolução do Faturamento</div>
+        <div class="card">
+          <div style="font-size:11px;color:var(--gray);margin-bottom:8px" id="fat-fonte-label"></div>
+          <canvas id="cFat"></canvas>
+        </div>
+
+        <!-- Pipeline por fonte (barras empilhadas) -->
+        <div class="sec-label">Status de Propostas por Fonte</div>
+        <div class="card">
+          <div class="fonte-legend">
+            <span><span class="fonte-dot" style="background:#076A76"></span>ERP</span>
+            <span><span class="fonte-dot" style="background:#41A8B9"></span>CRM</span>
+            <span><span class="fonte-dot" style="background:#9B59B6"></span>Manual</span>
+          </div>
+          <canvas id="cPipFonte"></canvas>
+        </div>
+
+        <!-- Comercial ERP -->
+        <div class="sec-label">Comercial Base ERP — Visão Geral <span id="lbl-erp-data" style="font-weight:400;font-size:10px;color:var(--gray)"></span></div>
+        <div id="erp-status-grid" class="status-grid"></div>
+
+        <!-- Comercial CRM -->
+        <div class="sec-label">Comercial Base CRM — Visão Geral <span id="lbl-crm-data" style="font-weight:400;font-size:10px;color:var(--gray)"></span></div>
+        <div id="crm-status-grid" class="status-grid"></div>
+
+        <!-- Propostas Manuais -->
+        <div class="sec-label">Propostas Manuais — Fora do ERP e do CRM</div>
+        <div id="manual-status-grid" class="status-grid"></div>
+        <div id="manual-list"></div>
+
+        <!-- Total Geral -->
+        <div class="sec-label">Total Geral Consolidado</div>
+        <div id="total-status-grid" class="status-grid"></div>
+
+        <!-- Clientes ERP -->
+        <div class="sec-label">Evolução de Clientes — Base ERP</div>
+        <div class="card">
+          <canvas id="cClientesErp"></canvas>
+          <div style="margin-top:8px">
+            <button class="cli-toggle" onclick="toggleLista('cli-erp-novos')">▶ Novos</button>
+            &nbsp;
+            <button class="cli-toggle" onclick="toggleLista('cli-erp-antigos')">▶ Antigos</button>
+            <div id="cli-erp-novos" class="cli-list"></div>
+            <div id="cli-erp-antigos" class="cli-list"></div>
+          </div>
+        </div>
+
+        <!-- Clientes CRM -->
+        <div class="sec-label">Evolução de Clientes — Base CRM</div>
+        <div class="card">
+          <canvas id="cClientesCrm"></canvas>
+          <div style="margin-top:8px">
+            <button class="cli-toggle" onclick="toggleLista('cli-crm-novos')">▶ Novos no CRM</button>
+            &nbsp;
+            <button class="cli-toggle" onclick="toggleLista('cli-crm-antigos')">▶ Já no ERP</button>
+            <div id="cli-crm-novos" class="cli-list"></div>
+            <div id="cli-crm-antigos" class="cli-list"></div>
+          </div>
+        </div>
+
+        <!-- Top Clientes -->
+        <div class="sec-label">Ranking de Clientes</div>
+        <div class="card table-wrap">
+          <table id="top-table">
+            <thead><tr><th>#</th><th>Cliente</th><th>Faturamento</th></tr></thead>
+            <tbody id="top-body"></tbody>
+          </table>
+        </div>
+
+        <!-- Faturas Emitidas -->
+        <div class="sec-label">Faturas Emitidas — Financeiro <span id="lbl-fat-data" style="font-weight:400;font-size:10px;color:var(--gray)"></span></div>
+        <div class="card">
+          <canvas id="cFatFin"></canvas>
+        </div>
+
+        <div style="font-size:11px;color:var(--gray);text-align:right;margin-top:16px" id="lbl-atualizado"></div>
+
+      </div><!-- /dashboard-content -->
+    </div><!-- /content -->
+  </div><!-- /main-grid -->
+</div><!-- /app -->
+
+<!-- ═══ MODAL: LANÇAMENTO MANUAL ══════════════════════════════════════════════ -->
+<div id="modal-manual" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">Nova Proposta Manual</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Mês de Referência</label>
+        <input type="month" id="m-ym">
+      </div>
+      <div class="form-group">
+        <label>Vertical</label>
+        <select id="m-vertical">
+          <option>LOCAÇÃO EVENTOS</option>
+          <option>LOCAÇÃO CASA</option>
+          <option>LOCAÇÃO ESCRITÓRIO</option>
+          <option>VENDA DE SEMINOVOS</option>
+          <option>CONCIERGE</option>
+          <option>Outros</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Nome do Cliente</label>
+      <input type="text" id="m-cliente" placeholder="Razão Social ou nome">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Status</label>
+        <select id="m-status">
+          <option>Aprovada</option>
+          <option>Enviada</option>
+          <option>Em negociação</option>
+          <option>Reprovada</option>
+          <option>Sem continuidade</option>
+          <option>Cancelada</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Valor (R$)</label>
+        <input type="number" id="m-valor" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Observação</label>
+      <textarea id="m-obs" rows="2" placeholder="Opcional"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="fecharModal('modal-manual')">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="salvarProposta()">Salvar Proposta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: CONFIGURAÇÕES ADMIN ════════════════════════════════════════════ -->
+<div id="modal-config" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">⚙ Configurações</div>
+    <div id="config-admin-section" style="display:none">
+      <div class="sec-label" style="margin-top:0">Usuários (somente admin)</div>
+      <div id="users-list" style="font-size:13px;margin-bottom:16px"></div>
+    </div>
+    <div class="sec-label" style="margin-top:0">Propostas Manuais Lançadas</div>
+    <div id="propostas-lista" style="font-size:12px;max-height:300px;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="fecharModal('modal-config')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// CONFIGURAÇÃO SUPABASE
+// ════════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL  = 'https://baejbzlmzsxapazhqrus.supabase.co'
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZWpiemxtenN4YXBhemhxcnVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0ODgzNzUsImV4cCI6MjA5NDA2NDM3NX0.GZ8NWHt4PiacWINK_w-VJsFGtsz3OU5XC_R9h-btPww'
+
+const { createClient } = supabase
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+
+// ════════════════════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ════════════════════════════════════════════════════════════════════════════
+let currentUser  = null
+let userRole     = 'editor'
+let DATA         = {}   // dados do Supabase
+let SERIE        = []   // array filtrado
+let filtroAno    = 'all'
+let filtroMes    = 'all'
+const charts     = {}
+
+const COR_ST = {
+  'Aprovada':'#076A76','Enviada':'#41A8B9','Em negociação':'#FBAE4B',
+  'Reprovada':'#DC3545','Sem continuidade':'#A9A69F','Cancelada':'#61605B','Preliminar':'#9B59B6'
+}
+const STATUS_ORDER = ['Aprovada','Enviada','Em negociação','Reprovada','Sem continuidade','Cancelada']
+
+// ════════════════════════════════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════════════════════════════════
+async function fazerLogin() {
+  const email = document.getElementById('email').value.trim()
+  const senha  = document.getElementById('senha').value
+  const errEl  = document.getElementById('login-error')
+  errEl.textContent = ''
+  if (!email || !senha) { errEl.textContent = 'Preencha e-mail e senha.'; return }
+  const { error } = await sb.auth.signInWithPassword({ email, password: senha })
+  if (error) { errEl.textContent = 'E-mail ou senha incorretos.'; return }
+}
+
+async function sair() {
+  await sb.auth.signOut()
+  document.getElementById('app').style.display = 'none'
+  document.getElementById('login-screen').style.display = 'flex'
+}
+
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session) {
+    currentUser = session.user
+    document.getElementById('login-screen').style.display = 'none'
+    document.getElementById('app').style.display = 'block'
+    document.getElementById('user-email').textContent = session.user.email
+    document.getElementById('senha').value = ''
+    await carregarPerfil()
+    await carregarDados()
+    await carregarHistoricoUploads()
+  }
+})
+
+document.getElementById('senha').addEventListener('keydown', e => {
+  if (e.key === 'Enter') fazerLogin()
+})
+
+// ════════════════════════════════════════════════════════════════════════════
+// PERFIL E ROLE
+// ════════════════════════════════════════════════════════════════════════════
+async function carregarPerfil() {
+  const { data } = await sb.from('profiles').select('role').eq('id', currentUser.id).single()
+  userRole = data?.role || 'editor'
+  if (userRole === 'admin') {
+    document.getElementById('admin-badge').style.display = 'inline-block'
+    document.getElementById('config-admin-section').style.display = 'block'
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CARREGAR DADOS
+// ════════════════════════════════════════════════════════════════════════════
+async function carregarDados() {
+  document.getElementById('loading-data').style.display = 'block'
+  document.getElementById('dashboard-content').style.display = 'none'
+
+  const [serieRes, pipRes, topRes, configRes, propManuaisRes, fatFinRes, planilhasRes] = await Promise.all([
+    sb.from('kpis_serie').select('ym,dados').order('ym'),
+    sb.from('pipeline_por_mes').select('*').order('ym'),
+    sb.from('top_clientes').select('*').order('valor_total', { ascending: false }).limit(20),
+    sb.from('configuracoes').select('chave,valor'),
+    sb.from('propostas_manuais').select('*').eq('ativo', true).order('criado_em', { ascending: false }),
+    sb.from('fat_fin').select('*').order('ym'),
+    sb.from('planilhas_importadas').select('*').order('uploaded_em', { ascending: false }).limit(3),
+  ])
+
+  // Montar DATA
+  SERIE = (serieRes.data || []).map(r => r.dados)
+  DATA.serie          = SERIE
+  DATA.pipeline_mes   = agruparPipeline(pipRes.data || [])
+  DATA.top_clientes   = topRes.data || []
+  DATA.fat_fin        = agruparFatFin(fatFinRes.data || [])
+  DATA.propostas_manuais = propManuaisRes.data || []
+
+  const config = {}
+  for (const r of (configRes.data || [])) config[r.chave] = r.valor
+  DATA.config = config
+
+  // Preencher sidebar com valores salvos
+  const meta = config.meta_mensal?.valor || 150000
+  document.getElementById('meta-input').value  = meta
+  document.getElementById('lbl-atualizado').textContent =
+    SERIE.length ? 'Última atualização: ' + (SERIE[SERIE.length-1]?.ym || '') : ''
+
+  // Preencher anos no filtro
+  const anos = [...new Set(SERIE.map(s => s.ym?.substring(0,4)))].sort()
+  const fAno = document.getElementById('f-ano')
+  fAno.innerHTML = '<option value="all">Todo histórico</option>'
+  anos.forEach(a => fAno.innerHTML += `<option value="${a}">${a}</option>`)
+
+  // Últimas datas de planilhas
+  const planilhas = planilhasRes.data || []
+  const datas = {}
+  for (const p of planilhas) datas[p.tipo] = p.data_planilha
+  if (datas.ERP) document.getElementById('lbl-erp-data').textContent = `(última atualização: ${formatarData(datas.ERP)})`
+  if (datas.CRM) document.getElementById('lbl-crm-data').textContent = `(última atualização: ${formatarData(datas.CRM)})`
+  if (datas.Faturamento) document.getElementById('lbl-fat-data').textContent = `(última atualização: ${formatarData(datas.Faturamento)})`
+
+  document.getElementById('loading-data').style.display = 'none'
+  document.getElementById('dashboard-content').style.display = 'block'
+
+  renderTudo()
+}
+
+function agruparPipeline(rows) {
+  const result = {}
+  for (const r of rows) {
+    if (!result[r.ym]) result[r.ym] = {}
+    if (!result[r.ym][r.fonte]) result[r.ym][r.fonte] = {}
+    result[r.ym][r.fonte][r.status] = { qtd: r.qtd, valor: r.valor }
+  }
+  return result
+}
+
+function agruparFatFin(rows) {
+  const result = {}
+  for (const r of rows) {
+    if (!result[r.ym]) result[r.ym] = { total: 0, por_tipo: {} }
+    result[r.ym].por_tipo[r.tipo] = r.valor
+    result[r.ym].total += r.valor
+  }
+  return result
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// FILTROS
+// ════════════════════════════════════════════════════════════════════════════
+function aplicarFiltro() {
+  filtroAno = document.getElementById('f-ano').value
+  filtroMes = document.getElementById('f-mes').value
+  renderTudo()
+}
+
+function getSerieFiltrada() {
+  return SERIE.filter(s => {
+    if (filtroAno !== 'all' && !s.ym?.startsWith(filtroAno)) return false
+    if (filtroMes !== 'all' && s.ym?.substring(5) !== filtroMes) return false
+    return true
+  })
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// RENDER PRINCIPAL
+// ════════════════════════════════════════════════════════════════════════════
+function renderTudo() {
+  const serie = getSerieFiltrada()
+  renderKPICards(serie)
+  renderFatChart(serie)
+  renderPipFonteChart(serie)
+  renderStatusGrids(serie)
+  renderClientesCharts(serie)
+  renderTopClientes()
+  renderFatFinChart()
+}
+
+// ── KPI Cards ──
+function renderKPICards(serie) {
+  const fat = serie.reduce((a,s) => a + (s.faturamento||0), 0)
+  const meta = DATA.config?.meta_mensal?.valor || 150000
+  const pct  = serie.length === 1 ? ((fat/meta)*100).toFixed(1) : null
+  const novos = serie.reduce((a,s) => a + (s.novos||0), 0)
+  const recorr = serie.reduce((a,s) => a + (s.recorrentes||0), 0)
+
+  const cards = [
+    { label:'Faturamento', value: BRL(fat), sub: pct ? `${pct}% da meta` : `${serie.length} meses` },
+    { label:'Meta Mensal',  value: BRL(meta), sub: pct ? (fat>=meta?'✅ Atingida':'⚠ Abaixo') : '' },
+    { label:'Clientes Novos', value: novos, sub: 'no período' },
+    { label:'Recorrentes', value: recorr, sub: 'no período' },
+  ]
+  document.getElementById('kpi-cards').innerHTML = cards.map(c =>
+    `<div class="kpi-card">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value">${c.value}</div>
+      <div class="kpi-sub">${c.sub}</div>
+    </div>`
+  ).join('')
+}
+
+// ── Faturamento ──
+function renderFatChart(serie) {
+  const labels = serie.map(s => s.label || s.ym)
+  const fat    = serie.map(s => s.faturamento || 0)
+  const meta   = DATA.config?.meta_mensal?.valor || 150000
+  killChart('cFat')
+  charts.cFat = new Chart(document.getElementById('cFat'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Faturamento', data: fat, backgroundColor:'rgba(7,106,118,.75)', borderRadius:4 },
+        { label:'Meta', data: serie.map(()=>meta), type:'line', borderColor:'#FBAE4B', borderWidth:2, pointRadius:0, tension:.3, fill:false }
+      ]
+    },
+    options: { responsive:true, plugins:{ legend:{ position:'top' } }, scales:{ y:{ ticks:{ callback: v => BRLk(v) } } } }
+  })
+}
+
+// ── Pipeline por Fonte (barras empilhadas) ──
+function renderPipFonteChart(serie) {
+  const yms = serie.map(s => s.ym)
+  const pip  = DATA.pipeline_mes || {}
+
+  const datasets = []
+  const statusColors = {
+    'Aprovada':        { erp:'#076A76', crm:'#0e9aa7', manual:'#1ecbe1' },
+    'Enviada':         { erp:'#41A8B9', crm:'#5ec5d5', manual:'#8be0ed' },
+    'Em negociação':   { erp:'#FBAE4B', crm:'#fcc06e', manual:'#fdd295' },
+    'Reprovada':       { erp:'#DC3545', crm:'#e8616e', manual:'#f29098' },
+    'Sem continuidade':{ erp:'#A9A69F', crm:'#c0bdb6', manual:'#d5d2ce' },
+    'Cancelada':       { erp:'#61605B', crm:'#7e7d77', manual:'#9c9a94' },
+  }
+
+  // Coletar propostas manuais por ym e status
+  const manualPip = {}
+  for (const p of (DATA.propostas_manuais || [])) {
+    if (!yms.includes(p.ym)) continue
+    if (!manualPip[p.ym]) manualPip[p.ym] = {}
+    manualPip[p.ym][p.status] = (manualPip[p.ym][p.status] || 0) + 1
+  }
+
+  STATUS_ORDER.forEach(st => {
+    const erpData    = yms.map(ym => (pip[ym]?.ERP?.[st]?.qtd || 0))
+    const crmData    = yms.map(ym => (pip[ym]?.CRM?.[st]?.qtd || 0))
+    const manualData = yms.map(ym => (manualPip[ym]?.[st] || 0))
+    const colors     = statusColors[st] || { erp:'#999', crm:'#bbb', manual:'#ccc' }
+    if (erpData.some(v=>v>0))    datasets.push({ label:`${st} ERP`,    data:erpData,    backgroundColor:colors.erp,    stack:'erp' })
+    if (crmData.some(v=>v>0))    datasets.push({ label:`${st} CRM`,    data:crmData,    backgroundColor:colors.crm,    stack:'crm' })
+    if (manualData.some(v=>v>0)) datasets.push({ label:`${st} Manual`, data:manualData, backgroundColor:colors.manual, stack:'manual' })
+  })
+
+  killChart('cPipFonte')
+  charts.cPipFonte = new Chart(document.getElementById('cPipFonte'), {
+    type:'bar',
+    data:{ labels: yms.map(ym => ym.substring(5)+'/'+ym.substring(2,4)), datasets },
+    options:{
+      responsive:true,
+      plugins:{ legend:{ position:'top', labels:{ font:{ size:10 }, boxWidth:10 } } },
+      scales:{ x:{ stacked:true, ticks:{ font:{ size:10 } } }, y:{ stacked:true } }
+    }
+  })
+}
+
+// ── Status Grids ──
+function renderStatusGrids(serie) {
+  const yms = new Set(serie.map(s => s.ym))
+  const pip  = DATA.pipeline_mes || {}
+  const erpTot = {}, crmTot = {}, manualTot = {}, allTot = {}
+
+  for (const ym of yms) {
+    for (const st of STATUS_ORDER) {
+      const erp = pip[ym]?.ERP?.[st]?.qtd || 0
+      const crm = pip[ym]?.CRM?.[st]?.qtd || 0
+      erpTot[st]   = (erpTot[st]   || 0) + erp
+      crmTot[st]   = (crmTot[st]   || 0) + crm
+      allTot[st]   = (allTot[st]   || 0) + erp + crm
+    }
+  }
+  for (const p of (DATA.propostas_manuais || [])) {
+    if (!yms.has(p.ym)) continue
+    manualTot[p.status] = (manualTot[p.status] || 0) + 1
+    allTot[p.status]    = (allTot[p.status]    || 0) + 1
+  }
+
+  document.getElementById('erp-status-grid').innerHTML    = mkGrid(erpTot)
+  document.getElementById('crm-status-grid').innerHTML    = mkGrid(crmTot)
+  document.getElementById('manual-status-grid').innerHTML = mkGrid(manualTot)
+  document.getElementById('total-status-grid').innerHTML  = mkGrid(allTot)
+
+  // Lista de propostas manuais
+  const lista = DATA.propostas_manuais || []
+  const filtradas = lista.filter(p => yms.has(p.ym))
+  document.getElementById('manual-list').innerHTML = filtradas.length
+    ? `<div class="card table-wrap"><table>
+        <thead><tr><th>Mês</th><th>Cliente</th><th>Vertical</th><th>Status</th><th>Valor</th>${userRole==='admin'?'<th></th>':''}</tr></thead>
+        <tbody>${filtradas.map(p=>`<tr>
+          <td>${p.ym}</td><td>${p.cliente}</td><td>${p.vertical}</td>
+          <td><span class="badge" style="background:${COR_ST[p.status]||'#999'};color:#fff">${p.status}</span></td>
+          <td>${BRL(p.valor)}</td>
+          ${userRole==='admin'?`<td><button onclick="excluirProposta('${p.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px">✕</button></td>`:''}
+        </tr>`).join('')}</tbody>
+      </table></div>` : ''
+}
+
+function mkGrid(totals) {
+  const items = STATUS_ORDER.filter(s => totals[s] > 0)
+  if (!items.length) return '<p style="font-size:12px;color:var(--gray)">Nenhuma proposta.</p>'
+  return items.map(s =>
+    `<div class="status-card" style="border-left-color:${COR_ST[s]}">
+      <div class="status-card-label">${s}</div>
+      <div class="status-card-num" style="color:${COR_ST[s]}">${totals[s]}</div>
+    </div>`
+  ).join('')
+}
+
+// ── Clientes ──
+function renderClientesCharts(serie) {
+  const erpDet = {}; const crmDet = {}
+  for (const s of serie) {
+    if (s.erp_detalhes) erpDet[s.ym] = s.erp_detalhes
+    if (s.crm_detalhes) crmDet[s.ym] = s.crm_detalhes
+  }
+  const yms    = serie.map(s => s.ym)
+  const labels = yms.map(ym => ym.substring(5)+'/'+ym.substring(2,4))
+
+  // ERP chart
+  killChart('cClientesErp')
+  charts.cClientesErp = new Chart(document.getElementById('cClientesErp'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Novos', data: yms.map(ym => (erpDet[ym]?.novos||[]).length || (serie.find(s=>s.ym===ym)?.novos||0)), backgroundColor:'rgba(7,106,118,.8)', borderRadius:3 },
+        { label:'Antigos', data: yms.map(ym => (erpDet[ym]?.antigos||[]).length || (serie.find(s=>s.ym===ym)?.recorrentes||0)), backgroundColor:'rgba(65,168,185,.6)', borderRadius:3 },
+      ]
+    },
+    options:{ responsive:true, plugins:{ legend:{position:'top'} }, scales:{x:{stacked:true},y:{stacked:true}} }
+  })
+
+  // Preencher listas ERP
+  if (Object.keys(erpDet).length) {
+    const novosAll = [...new Set(Object.values(erpDet).flatMap(d => d.novos||[]))].sort()
+    const antigosAll = [...new Set(Object.values(erpDet).flatMap(d => d.antigos||[]))].sort()
+    document.getElementById('cli-erp-novos').innerHTML = novosAll.map(n=>`<div>${n}</div>`).join('') || 'Nenhum'
+    document.getElementById('cli-erp-antigos').innerHTML = antigosAll.map(n=>`<div>${n}</div>`).join('') || 'Nenhum'
+  }
+
+  // CRM chart
+  killChart('cClientesCrm')
+  charts.cClientesCrm = new Chart(document.getElementById('cClientesCrm'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Novos (nunca no ERP)', data: yms.map(ym => (crmDet[ym]?.novos||[]).length), backgroundColor:'rgba(7,106,118,.8)', borderRadius:3 },
+        { label:'Já no ERP', data: yms.map(ym => (crmDet[ym]?.antigos||[]).length), backgroundColor:'rgba(65,168,185,.6)', borderRadius:3 },
+      ]
+    },
+    options:{ responsive:true, plugins:{ legend:{position:'top'} }, scales:{x:{stacked:true},y:{stacked:true}} }
+  })
+  if (Object.keys(crmDet).length) {
+    const novosAll = [...new Set(Object.values(crmDet).flatMap(d => d.novos||[]))].sort()
+    const antigosAll = [...new Set(Object.values(crmDet).flatMap(d => d.antigos||[]))].sort()
+    document.getElementById('cli-crm-novos').innerHTML = novosAll.map(n=>`<div>${n}</div>`).join('') || 'Nenhum'
+    document.getElementById('cli-crm-antigos').innerHTML = antigosAll.map(n=>`<div>${n}</div>`).join('') || 'Nenhum'
+  }
+}
+
+// ── Top Clientes ──
+function renderTopClientes() {
+  const top = DATA.top_clientes || []
+  document.getElementById('top-body').innerHTML = top.slice(0,15).map((c,i) =>
+    `<tr><td>${i+1}</td><td>${c.nome}</td><td>${BRL(c.valor_total)}</td></tr>`
+  ).join('')
+}
+
+// ── Faturas Emitidas ──
+function renderFatFinChart() {
+  const ff = DATA.fat_fin || {}
+  const yms = Object.keys(ff).sort()
+  const tipos = [...new Set(yms.flatMap(ym => Object.keys(ff[ym]?.por_tipo||{})))]
+  const colors = ['#076A76','#41A8B9','#FBAE4B','#DC3545','#9B59B6','#28A745']
+  const datasets = tipos.map((t,i) => ({
+    label: t,
+    data: yms.map(ym => ff[ym]?.por_tipo?.[t] || 0),
+    backgroundColor: colors[i % colors.length],
+    borderRadius: 3,
+    stack: 'fat',
+  }))
+  killChart('cFatFin')
+  charts.cFatFin = new Chart(document.getElementById('cFatFin'), {
+    type:'bar',
+    data:{ labels: yms, datasets },
+    options:{ responsive:true, plugins:{ legend:{position:'top',labels:{font:{size:10},boxWidth:10}} }, scales:{ x:{stacked:true}, y:{stacked:true,ticks:{callback:v=>BRLk(v)}} } }
+  })
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// UPLOAD
+// ════════════════════════════════════════════════════════════════════════════
+function triggerUpload(tipo) {
+  document.getElementById(`file-${tipo}`).click()
+}
+
+async function uploadArquivo(tipo, input) {
+  const file = input.files[0]
+  if (!file) return
+  const statusEl = document.getElementById('upload-status')
+  statusEl.textContent = `Enviando ${file.name}...`
+  try {
+    const path = `${tipo}/${Date.now()}_${file.name}`
+    const { error: storageErr } = await sb.storage.from('planilhas').upload(path, file)
+    if (storageErr) throw storageErr
+
+    const dataPlanilha = extrairData(file.name)
+    await sb.from('planilhas_importadas').insert({
+      nome_arquivo: file.name,
+      tipo,
+      data_planilha: dataPlanilha,
+      storage_path: path,
+      uploaded_por: currentUser.id,
+    })
+
+    statusEl.textContent = `✅ ${file.name} enviado`
+    document.getElementById('process-btn').disabled = false
+    await carregarHistoricoUploads()
+    toast(`${file.name} carregado. Clique em "Processar Agora" para atualizar o dashboard.`)
+  } catch(e) {
+    statusEl.textContent = `❌ Erro: ${e.message}`
+  }
+  input.value = ''
+}
+
+function extrairData(nome) {
+  const m = nome.match(/\((\d{2})\.(\d{2})\.(\d{4})\)/)
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  return null
+}
+
+async function carregarHistoricoUploads() {
+  const { data } = await sb.from('planilhas_importadas')
+    .select('*').order('uploaded_em', { ascending: false }).limit(6)
+  const el = document.getElementById('upload-history')
+  el.innerHTML = (data||[]).map(p =>
+    `<div class="upload-history-item">
+      <span>${p.tipo}: ${formatarData(p.data_planilha) || p.nome_arquivo.substring(0,20)}</span>
+      <span class="badge ${p.processado?'badge-ok':'badge-pending'}">${p.processado?'OK':'Pendente'}</span>
+    </div>`
+  ).join('') || '<span style="font-size:12px;color:var(--gray)">Nenhum upload</span>'
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PROCESSAR
+// ════════════════════════════════════════════════════════════════════════════
+async function processar() {
+  const btn = document.getElementById('process-btn')
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span> Processando...'
+  try {
+    const { error } = await sb.functions.invoke('trigger-processing')
+    if (error) throw error
+    toast('Processamento iniciado! O dashboard será atualizado em alguns minutos.')
+    setTimeout(() => carregarDados(), 60000)  // auto-refresh após 1 min
+  } catch(e) {
+    toast(`Erro ao processar: ${e.message}`, true)
+    btn.disabled = false
+  }
+  btn.innerHTML = '▶ Processar Agora'
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONFIGURAÇÕES SALVAS NO SUPABASE
+// ════════════════════════════════════════════════════════════════════════════
+let salvarMetaTimeout = null
+function salvarMeta() {
+  clearTimeout(salvarMetaTimeout)
+  salvarMetaTimeout = setTimeout(async () => {
+    const v = parseFloat(document.getElementById('meta-input').value) || 150000
+    await sb.from('configuracoes').upsert({ chave:'meta_mensal', valor:{ valor:v }, atualizado_por:currentUser.id, atualizado_em:new Date().toISOString() })
+    toast('Meta salva')
+  }, 1000)
+}
+
+let salvarBeTimeout = null
+function salvarBreakeven() {
+  clearTimeout(salvarBeTimeout)
+  salvarBeTimeout = setTimeout(async () => {
+    const ym  = document.getElementById('f-ano').value !== 'all' ? document.getElementById('f-ano').value + '-' + (document.getElementById('f-mes').value !== 'all' ? document.getElementById('f-mes').value : '01') : null
+    const v   = parseFloat(document.getElementById('be-input').value) || 0
+    const cfg = (await sb.from('configuracoes').select('valor').eq('chave','breakeven').single()).data?.valor || {}
+    if (ym) cfg[ym] = v
+    else cfg['default'] = v
+    await sb.from('configuracoes').upsert({ chave:'breakeven', valor:cfg, atualizado_por:currentUser.id, atualizado_em:new Date().toISOString() })
+    toast('Break-even salvo')
+  }, 1000)
+}
+
+async function salvarMarketing() {
+  const ym = document.getElementById('mkt-mes').value
+  const v  = parseFloat(document.getElementById('mkt-valor').value) || 0
+  if (!ym) { toast('Selecione o mês', true); return }
+  const cfg = (await sb.from('configuracoes').select('valor').eq('chave','marketing').single()).data?.valor || {}
+  cfg[ym] = v
+  await sb.from('configuracoes').upsert({ chave:'marketing', valor:cfg, atualizado_por:currentUser.id, atualizado_em:new Date().toISOString() })
+  toast(`Marketing ${ym}: ${BRL(v)} salvo`)
+}
+
+async function salvarInadimplencia() {
+  const ym = document.getElementById('inadimpl-mes').value
+  const v  = parseFloat(document.getElementById('inadimpl-valor').value) || 0
+  if (!ym) { toast('Selecione o mês', true); return }
+  await sb.from('inadimplencia').upsert({ ym, total:v, informado_por:currentUser.id, informado_em:new Date().toISOString() })
+  const cfg = (await sb.from('configuracoes').select('valor').eq('chave','inadimplencia').single()).data?.valor || {}
+  cfg[ym] = { total:v }
+  await sb.from('configuracoes').upsert({ chave:'inadimplencia', valor:cfg })
+  toast(`Inadimplência ${ym}: ${BRL(v)} salva`)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PROPOSTAS MANUAIS
+// ════════════════════════════════════════════════════════════════════════════
+function abrirModalManual() {
+  const hoje = new Date()
+  document.getElementById('m-ym').value = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`
+  document.getElementById('modal-manual').classList.add('open')
+}
+
+async function salvarProposta() {
+  const ym     = document.getElementById('m-ym').value
+  const cli    = document.getElementById('m-cliente').value.trim()
+  const vert   = document.getElementById('m-vertical').value
+  const status = document.getElementById('m-status').value
+  const valor  = parseFloat(document.getElementById('m-valor').value) || 0
+  const obs    = document.getElementById('m-obs').value.trim()
+  if (!ym || !cli) { toast('Preencha mês e cliente', true); return }
+  await sb.from('propostas_manuais').insert({ ym, cliente:cli, vertical:vert, status, valor, observacao:obs, criado_por:currentUser.id })
+  fecharModal('modal-manual')
+  toast('Proposta lançada')
+  await carregarDados()
+}
+
+async function excluirProposta(id) {
+  if (!confirm('Excluir esta proposta?')) return
+  await sb.from('propostas_manuais').update({ ativo:false }).eq('id', id)
+  await carregarDados()
+  toast('Proposta removida')
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONFIGURAÇÕES MODAL (admin)
+// ════════════════════════════════════════════════════════════════════════════
+async function abrirModalConfig() {
+  document.getElementById('modal-config').classList.add('open')
+  if (userRole === 'admin') {
+    const { data } = await sb.from('profiles').select('email,role')
+    document.getElementById('users-list').innerHTML = (data||[]).map(u =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span>${u.email}</span>
+        <select onchange="alterarRole('${u.email}',this.value)" style="font-size:12px;padding:2px 6px;border-radius:4px;border:1px solid var(--border)">
+          <option ${u.role==='admin'?'selected':''}>admin</option>
+          <option ${u.role==='editor'?'selected':''}>editor</option>
+        </select>
+      </div>`
+    ).join('')
+  }
+  const props = DATA.propostas_manuais || []
+  document.getElementById('propostas-lista').innerHTML = props.length
+    ? props.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between">
+        <span>${p.ym} · ${p.cliente} · <b>${p.status}</b></span>
+        ${userRole==='admin'?`<button onclick="excluirProposta('${p.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer">✕</button>`:''}
+      </div>`).join('')
+    : '<span style="font-size:12px;color:var(--gray)">Nenhuma proposta lançada</span>'
+}
+
+async function alterarRole(email, novoRole) {
+  const { data } = await sb.from('profiles').select('id').eq('email', email).single()
+  if (data) await sb.from('profiles').update({ role: novoRole }).eq('id', data.id)
+  toast(`Role de ${email} alterado para ${novoRole}`)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// UTILITÁRIOS
+// ════════════════════════════════════════════════════════════════════════════
+function fecharModal(id) { document.getElementById(id).classList.remove('open') }
+
+function killChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id] }
+}
+
+function toggleLista(id) {
+  const el = document.getElementById(id)
+  el.style.display = el.style.display === 'none' ? 'block' : 'none'
+}
+
+function BRL(v) {
+  return 'R$ ' + (v||0).toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 })
+}
+function BRLk(v) {
+  if (Math.abs(v) >= 1000) return 'R$' + (v/1000).toFixed(0) + 'k'
+  return 'R$' + (v||0).toFixed(0)
+}
+
+function formatarData(d) {
+  if (!d) return ''
+  const [y,m,day] = d.split('-')
+  return `${day||''}/${m||''}/${y||''}`
+}
+
+function toast(msg, err=false) {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.style.background = err ? '#DC3545' : '#333'
+  el.classList.add('show')
+  setTimeout(() => el.classList.remove('show'), 3500)
+}
+
+// Fechar modal clicando fora
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open') })
+})
+</script>
+</body>
+</html>

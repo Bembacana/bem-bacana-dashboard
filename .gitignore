@@ -1,0 +1,24 @@
+# Dados locais — NÃO versionar planilhas com dados da empresa
+dados/*.xlsx
+dados/*.xls
+dados/*.csv
+
+# Output local
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.log
+.venv/
+venv/
+
+# Credenciais
+.env.local
+secrets.json
+
+# Sistema
+.DS_Store
+Thumbs.db
