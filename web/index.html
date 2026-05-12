@@ -116,9 +116,85 @@ tr:hover td{background:rgba(7,106,118,.03)}
 #btn-logout{border:none;background:rgba(255,255,255,.18);color:#fff;border-radius:6px;
   padding:5px 12px;font-size:12px;font-family:inherit;cursor:pointer;margin-left:10px}
 #btn-logout:hover{background:rgba(255,255,255,.3)}
+
+/* ── MODAL ATUALIZAR ── */
+#modal-atualizar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:8888;
+  align-items:center;justify-content:center}
+#modal-atualizar-overlay.open{display:flex}
+.upd-modal{background:#fff;border-radius:14px;padding:32px;width:480px;max-width:95vw;
+  box-shadow:0 16px 48px rgba(0,0,0,.2)}
+.upd-modal h3{font-size:15px;font-weight:700;color:#076A76;margin-bottom:6px}
+.upd-modal p{font-size:12px;color:#A9A69F;margin-bottom:20px}
+.upd-area{border:1.8px dashed #E8E6E1;border-radius:10px;padding:14px 16px;margin-bottom:10px;
+  display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s;background:#fff}
+.upd-area:hover{border-color:#076A76;background:#f0f9fa}
+.upd-area.ok{border-color:#28A745;background:#f0fff4}
+.upd-area.ok .upd-icon{color:#28A745}
+.upd-icon{font-size:20px;flex-shrink:0}
+.upd-info{flex:1}
+.upd-title{font-size:13px;font-weight:700;color:#61605B}
+.upd-sub{font-size:11px;color:#A9A69F;margin-top:2px}
+.upd-filename{font-size:11px;color:#28A745;margin-top:3px;font-weight:600}
+.upd-area input[type=file]{display:none}
+.upd-process-btn{width:100%;padding:11px;border:none;border-radius:8px;font-size:14px;font-weight:700;
+  font-family:inherit;cursor:pointer;background:#076A76;color:#fff;margin-top:10px;transition:background .2s}
+.upd-process-btn:hover{background:#05565f}
+.upd-process-btn:disabled{background:#A9A69F;cursor:not-allowed}
+.upd-status{font-size:12px;text-align:center;margin-top:10px;min-height:18px;color:#61605B}
+.upd-status.ok{color:#28A745;font-weight:600}
+.upd-status.err{color:#DC3545;font-weight:600}
+.upd-close{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:#A9A69F;margin-top:-4px}
 </style>
 </head>
 <body>
+
+
+<!-- ══ MODAL ATUALIZAR DADOS ═════════════════════════════════════════════════ -->
+<div id="modal-atualizar-overlay">
+  <div class="upd-modal">
+    <button class="upd-close" onclick="fecharModalAtualizar()" title="Fechar">&#x2715;</button>
+    <h3>Atualizar Dados do Dashboard</h3>
+    <p>Selecione os arquivos exportados do ERP e clique em Processar. O dashboard será atualizado automaticamente.</p>
+
+    <!-- ERP / Eloca -->
+    <div class="upd-area" id="area-erp" onclick="document.getElementById('file-erp').click()">
+      <div class="upd-icon">📋</div>
+      <div class="upd-info">
+        <div class="upd-title">Planilha ERP — Eloca</div>
+        <div class="upd-sub">Relatório de propostas exportado do Eloca (Relatorio_*.xlsx)</div>
+        <div class="upd-filename" id="fname-erp"></div>
+      </div>
+      <input type="file" id="file-erp" accept=".xlsx,.xls" onchange="selecionarArquivo('erp',this)">
+    </div>
+
+    <!-- Faturamento -->
+    <div class="upd-area" id="area-fat" onclick="document.getElementById('file-fat').click()">
+      <div class="upd-icon">💰</div>
+      <div class="upd-info">
+        <div class="upd-title">Faturas Emitidas</div>
+        <div class="upd-sub">Export de faturas do Eloca (ftp*.xlsx)</div>
+        <div class="upd-filename" id="fname-fat"></div>
+      </div>
+      <input type="file" id="file-fat" accept=".xlsx,.xls" onchange="selecionarArquivo('fat',this)">
+    </div>
+
+    <!-- CRM / Histórico -->
+    <div class="upd-area" id="area-crm" onclick="document.getElementById('file-crm').click()">
+      <div class="upd-icon">📁</div>
+      <div class="upd-info">
+        <div class="upd-title">Planilha Histórica (CRM / Dash BB)</div>
+        <div class="upd-sub">Arquivo com Planilha2, ERP_CRM, Plan CAC, MRR ARR</div>
+        <div class="upd-filename" id="fname-crm"></div>
+      </div>
+      <input type="file" id="file-crm" accept=".xlsx,.xls" onchange="selecionarArquivo('crm',this)">
+    </div>
+
+    <button class="upd-process-btn" id="btn-processar" onclick="processar()" disabled>
+      ▶ Processar e Atualizar Dashboard
+    </button>
+    <div class="upd-status" id="upd-status"></div>
+  </div>
+</div>
 
 <!-- ══ AUTH OVERLAY ══════════════════════════════════════════════════════════ -->
 <div id="auth-overlay">
@@ -135,7 +211,7 @@ tr:hover td{background:rgba(7,106,118,.03)}
 
 <header class="hdr">
   <div class="hdr-logo"><img src="data:image/png;base64,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" alt="Bem Bacana" style="height:47px"></div>
-  <div class="hdr-right"><strong>Dashboard Financeiro e Comercial</strong><br>Atualizado em 12/05/2026 01:24<button id="btn-logout" onclick="doLogout()" style="display:none;border:none;background:rgba(255,255,255,.18);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;font-family:inherit;cursor:pointer;margin-left:10px">Sair</button>
+  <div class="hdr-right"><strong>Dashboard Financeiro e Comercial</strong><br>Atualizado em 12/05/2026 01:24<button id="btn-atualizar" onclick="abrirModalAtualizar()" style="border:none;background:rgba(255,255,255,.18);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;font-family:inherit;cursor:pointer;margin-left:10px;display:none">↑ Atualizar Dados</button><button id="btn-logout" onclick="doLogout()" style="display:none;border:none;background:rgba(255,255,255,.18);color:#fff;border-radius:6px;padding:5px 12px;font-size:12px;font-family:inherit;cursor:pointer;margin-left:10px">Sair</button>
 </div>
 </header>
 <div class="filter-bar">
@@ -1870,6 +1946,94 @@ document.addEventListener('DOMContentLoaded',()=>{
 </div>
 
 
+
+<script>
+// ── Upload + Processamento ────────────────────────────────────────────────────
+const files_selecionados = { erp: null, fat: null, crm: null }
+const EDGE_URL = 'https://baejbzlmzsxapazhqrus.supabase.co/functions/v1/trigger-processing'
+
+function abrirModalAtualizar() {
+  document.getElementById('modal-atualizar-overlay').classList.add('open')
+}
+function fecharModalAtualizar() {
+  document.getElementById('modal-atualizar-overlay').classList.remove('open')
+}
+
+function selecionarArquivo(tipo, input) {
+  const file = input.files[0]
+  if (!file) return
+  files_selecionados[tipo] = file
+  document.getElementById('fname-' + tipo).textContent = file.name
+  document.getElementById('area-' + tipo).classList.add('ok')
+  // Habilitar botão processar se tiver ao menos 1 arquivo
+  const temArquivo = Object.values(files_selecionados).some(f => f !== null)
+  document.getElementById('btn-processar').disabled = !temArquivo
+}
+
+async function processar() {
+  const btn = document.getElementById('btn-processar')
+  const status = document.getElementById('upd-status')
+  btn.disabled = true
+  btn.textContent = 'Enviando arquivos...'
+  status.className = 'upd-status'
+  status.textContent = ''
+
+  try {
+    // 1. Upload dos arquivos para o Supabase Storage
+    const { data: { session } } = await sb.auth.getSession()
+    if (!session) throw new Error('Sessão expirada. Faça login novamente.')
+
+    let uploadados = 0
+    const prefixo = new Date().toISOString().slice(0,16).replace('T','-').replace(':','')
+
+    for (const [tipo, file] of Object.entries(files_selecionados)) {
+      if (!file) continue
+      const path = prefixo + '-' + tipo + '-' + file.name
+      const { error } = await sb.storage.from('planilhas').upload(path, file, {
+        upsert: true,
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+      if (error) throw new Error('Erro ao enviar ' + file.name + ': ' + error.message)
+      uploadados++
+    }
+
+    if (uploadados === 0) throw new Error('Selecione ao menos um arquivo.')
+
+    // 2. Disparar o processamento via Edge Function
+    btn.textContent = 'Disparando processamento...'
+    const resp = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!resp.ok) {
+      const err = await resp.text()
+      throw new Error('Edge Function: ' + resp.status + ' — ' + err)
+    }
+
+    status.className = 'upd-status ok'
+    status.textContent = '✓ ' + uploadados + ' arquivo(s) enviado(s). Processamento iniciado — o dashboard será atualizado em ~2 minutos.'
+    btn.textContent = 'Processamento em andamento...'
+
+    // Limpar seleções
+    for (const k of Object.keys(files_selecionados)) files_selecionados[k] = null
+    ['erp','fat','crm'].forEach(t => {
+      document.getElementById('fname-' + t).textContent = ''
+      document.getElementById('area-' + t).classList.remove('ok')
+    })
+
+  } catch(e) {
+    status.className = 'upd-status err'
+    status.textContent = '✗ ' + e.message
+    btn.disabled = false
+    btn.textContent = '▶ Processar e Atualizar Dashboard'
+  }
+}
+</script>
+
 <script>
 // ── Supabase Auth ────────────────────────────────────────────────────────────
 const { createClient } = supabase
@@ -1889,6 +2053,7 @@ async function checkSession() {
 function showDashboard(user) {
   overlay.style.display = 'none'
   logoutBtn.style.display = 'inline-block'
+  document.getElementById('btn-atualizar').style.display = 'inline-block'
   // Mostrar e-mail do usuário no header (opcional)
   const hdrRight = document.querySelector('.hdr-right')
   if (hdrRight && user) {
